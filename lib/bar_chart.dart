@@ -12,8 +12,8 @@ typedef TitleFunc<T> = String Function(T);
 typedef LineTextFormat<T> = String Function(double);
 typedef OnBarTapFunc<T> = void Function(T)?;
 
-class BarChartWrapper<T> extends StatefulWidget {
-  const BarChartWrapper(
+class BarChart<T> extends StatefulWidget {
+  const BarChart(
       {required this.listBar,
       this.paddingBottom = 0,
       this.paddingTop = 0,
@@ -64,10 +64,10 @@ class BarChartWrapper<T> extends StatefulWidget {
   final Color lineColor;
 
   @override
-  State<BarChartWrapper<T>> createState() => _BarChartWrapperState();
+  State<BarChart<T>> createState() => _BarChartState();
 }
 
-class _BarChartWrapperState<T> extends State<BarChartWrapper<T>> {
+class _BarChartState<T> extends State<BarChart<T>> {
   // max height of widget
   late double maxHeight;
   // max width of widget
