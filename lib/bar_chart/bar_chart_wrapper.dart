@@ -1,15 +1,18 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:chart_animation/bar_chart/model/bar.dart';
 import 'package:flutter/material.dart';
 
 const kDefaultBarDecoration = BoxDecoration(
     color: Colors.blue, borderRadius: BorderRadius.all(Radius.circular(5)));
 const kIndicatorTextStyle = TextStyle(fontSize: 10);
 const kTitleTextStyle = TextStyle(fontSize: 12);
+typedef ValueFunc<T> = double Function(T);
+typedef TitleFunc<T> = String Function(T);
+typedef LineTextFormat<T> = String Function(double);
+typedef OnBarTapFunc<T> = void Function(T)?;
 
-class BarChartWrapper extends StatefulWidget {
+class BarChartWrapper<T> extends StatefulWidget {
   const BarChartWrapper(
       {required this.listBar,
       this.paddingBottom = 0,
@@ -22,37 +25,71 @@ class BarChartWrapper extends StatefulWidget {
       this.barDecoration = kDefaultBarDecoration,
       this.lineColor = Colors.grey,
       required this.indicatorBuilder,
-      required this.onBarTap,
+      required this.getTitle,
+      required this.getValue,
+      required this.lineTextFormat,
+      this.onBarTap,
       Key? key})
       : super(key: key);
-  final List<Bar> listBar;
+  final List<T> listBar;
   final double paddingTop;
   final double paddingBottom;
   final double barWidth;
   final double barMargin;
-  final String Function(double) indicatorBuilder;
-  final TextStyle indicatorTextStyle;
-  final TextStyle titleTextStyle;
-  final BoxDecoration barDecoration;
-  final void Function(Bar) onBarTap;
-  final Color lineColor;
   final double barPaddingLeft;
+
+  /// Builder for value on the top of Barchart when tapped
+  final TitleFunc<T> indicatorBuilder;
+
+  /// Function for format indicator line in the background of
+  final LineTextFormat lineTextFormat;
+
+  /// Text style of indicator
+  final TextStyle indicatorTextStyle;
+
+  /// Text style of title
+  final TextStyle titleTextStyle;
+
+  /// Style of bar chart
+  final BoxDecoration barDecoration;
+  final OnBarTapFunc<T> onBarTap;
+
+  /// Function to get Value of Bar Chart
+  final ValueFunc<T> getValue;
+
+  /// Function to get Title of Bar Chart
+  final TitleFunc<T> getTitle;
+
+  /// Indicator line Color
+  final Color lineColor;
+
   @override
-  State<BarChartWrapper> createState() => _BarChartWrapperState();
+  State<BarChartWrapper<T>> createState() => _BarChartWrapperState();
 }
 
-class _BarChartWrapperState extends State<BarChartWrapper> {
+class _BarChartWrapperState<T> extends State<BarChartWrapper<T>> {
+  // max height of widget
   late double maxHeight;
+  // max width of widget
   late double maxWidth;
+  // the number of indicator line
   late int maxLine;
+  // the round value of the max values among of bars
   late double maxRoundValue;
+  // the value between two indicator
   late double spacer;
+  // the actually height of spacer in screen
   late double spacerHeight;
-  late List<Bar> listBar = widget.listBar;
+
+  /// list of bar
+  late List<T> listBar = widget.listBar;
   late double paddingBottom = widget.paddingBottom;
   late double paddingTop = widget.paddingTop;
+  // space between two bars
   late double barMargin = widget.barMargin;
+  // the minimun width of text indicator
   late double indicatorTextWidth;
+  // the value between two indicator but rounded
   late int base;
   final StreamController<int> _tappedIndexController = StreamController<int>();
   @override
@@ -68,12 +105,14 @@ class _BarChartWrapperState extends State<BarChartWrapper> {
   }
 
   void initData() {
+    // get max value among of list Bar
     double maxValue = 0;
-    for (Bar bar in listBar) {
-      if (bar.value > maxValue) {
-        maxValue = bar.value;
+    for (T bar in listBar) {
+      if (widget.getValue(bar) > maxValue) {
+        maxValue = widget.getValue(bar);
       }
     }
+    // calculate Base
     base = pow(10, (maxValue.toInt()).toString().length - 1) as int;
     maxLine = (maxValue ~/ base) + 1;
     maxRoundValue = maxValue - maxValue % base;
@@ -83,7 +122,7 @@ class _BarChartWrapperState extends State<BarChartWrapper> {
     for (int i = 0; i < maxLine; i++) {
       indicatorTextWidth = max(
           indicatorTextWidth,
-          _textWidth(widget.indicatorBuilder(spacer * (maxLine - i)),
+          _textWidth(widget.lineTextFormat(spacer * (maxLine - i)),
               widget.indicatorTextStyle));
     }
   }
@@ -93,7 +132,7 @@ class _BarChartWrapperState extends State<BarChartWrapper> {
     return LayoutBuilder(builder: ((context, constraints) {
       maxHeight = constraints.maxHeight;
       maxWidth = constraints.maxWidth;
-      spacerHeight = (maxHeight - paddingBottom - paddingTop) / maxLine;
+      spacerHeight = _spacerHeight;
       return SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Stack(
@@ -115,8 +154,7 @@ class _BarChartWrapperState extends State<BarChartWrapper> {
         Container(
           height: paddingTop,
         ),
-        ...List.generate(
-            maxLine, (index) => _line(spacer * (maxLine - index - 1))),
+        ...List.generate(maxLine, (index) => _line(getLineValue(index))),
         Container(
           height: paddingBottom,
         )
@@ -135,7 +173,7 @@ class _BarChartWrapperState extends State<BarChartWrapper> {
           SizedBox(
               width: indicatorTextWidth,
               child: Text(
-                widget.indicatorBuilder(value),
+                widget.lineTextFormat(value),
                 style: widget.indicatorTextStyle,
               )),
           const SizedBox(
@@ -165,12 +203,15 @@ class _BarChartWrapperState extends State<BarChartWrapper> {
           (index) => GestureDetector(
             onTap: () {
               _tappedIndexController.add(index);
-              widget.onBarTap(listBar[index]);
+              if (widget.onBarTap != null) {
+                widget.onBarTap!(listBar[index]);
+              }
             },
             child: TweenAnimationBuilder<double>(
                 tween: Tween<double>(
                     begin: 10,
-                    end: (widget.listBar[index].value / base) * spacerHeight),
+                    end: (widget.getValue(widget.listBar[index]) / base) *
+                        spacerHeight),
                 duration: const Duration(milliseconds: 500),
                 curve: Curves.bounceOut,
                 builder: (context, height, child) {
@@ -199,7 +240,7 @@ class _BarChartWrapperState extends State<BarChartWrapper> {
               margin: EdgeInsets.symmetric(horizontal: barMargin),
               width: widget.barWidth,
               child: Text(
-                listBar[index].title,
+                widget.getTitle(listBar[index]),
                 textAlign: TextAlign.center,
                 style: widget.titleTextStyle,
               ),
@@ -222,11 +263,12 @@ class _BarChartWrapperState extends State<BarChartWrapper> {
                   (widget.barWidth) * (index),
               bottom: spacerHeight / 2 +
                   paddingBottom +
-                  (widget.listBar[index].value / base) * spacerHeight,
+                  (widget.getValue(widget.listBar[index]) / base) *
+                      spacerHeight,
               child: SizedBox(
                 width: widget.barWidth,
                 child: Text(
-                  widget.indicatorBuilder(listBar[index].value),
+                  widget.indicatorBuilder(listBar[index]),
                   textAlign: TextAlign.center,
                   style: widget.indicatorTextStyle,
                 ),
@@ -236,6 +278,12 @@ class _BarChartWrapperState extends State<BarChartWrapper> {
 
   double _getLineWidth() {
     return (2 * barMargin + widget.barWidth) * listBar.length + 30;
+  }
+
+  double get _spacerHeight =>
+      (maxHeight - paddingBottom - paddingTop) / maxLine;
+  double getLineValue(int index) {
+    return spacer * (maxLine - index - 1);
   }
 
   double _textWidth(String text, TextStyle style) {

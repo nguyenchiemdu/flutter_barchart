@@ -60,16 +60,19 @@ class _MyHomePageState extends State<MyHomePage> {
           ),
           SizedBox(
               height: MediaQuery.of(context).size.height / 3,
-              child: BarChartWrapper(
+              child: BarChartWrapper<Bar>(
                 listBar: listbar,
-                paddingBottom: 20,
+                paddingBottom: 50,
                 paddingTop: 20,
                 barWidth: 50,
-                indicatorBuilder: (value) {
-                  String text = (value.toInt()).toString();
+                barMargin: 10,
+                indicatorBuilder: (bar) {
+                  String text = (bar.value.toInt()).toString();
                   return text;
                 },
-                onBarTap: (bar) {},
+                lineTextFormat: (value) => value.toInt().toString(),
+                getTitle: (bar) => bar.title,
+                getValue: (bar) => bar.value,
               )),
         ],
       )),
